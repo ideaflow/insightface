@@ -16,6 +16,8 @@ import argparse
 import mxnet.optimizer as optimizer
 from config import config, default, generate_config
 from metric import *
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'common'))
+import flops_counter
 sys.path.append(os.path.join(os.path.dirname(__file__), 'eval'))
 import verification
 sys.path.append(os.path.join(os.path.dirname(__file__), 'symbol'))
@@ -24,6 +26,7 @@ import fmobilefacenet
 import fmobilenet
 import fmnasnet
 import fdensenet
+import vargfacenet
 
 
 logger = logging.getLogger()
@@ -147,7 +150,7 @@ def train_net(args):
     ctx = []
     cvd = os.environ['CUDA_VISIBLE_DEVICES'].strip()
     if len(cvd)>0:
-      for i in xrange(len(cvd.split(','))):
+      for i in range(len(cvd.split(','))):
         ctx.append(mx.gpu(i))
     if len(ctx)==0:
       ctx = [mx.cpu()]
@@ -163,6 +166,8 @@ def train_net(args):
     args.batch_size = args.per_batch_size*args.ctx_num
     args.rescale_threshold = 0
     args.image_channel = config.image_shape[2]
+    config.batch_size = args.batch_size
+    config.per_batch_size = args.per_batch_size
 
     data_dir = config.dataset_path
     path_imgrec = None
@@ -190,6 +195,13 @@ def train_net(args):
       print('loading', args.pretrained, args.pretrained_epoch)
       _, arg_params, aux_params = mx.model.load_checkpoint(args.pretrained, args.pretrained_epoch)
       sym = get_symbol(args)
+
+    if config.count_flops:
+      all_layers = sym.get_internals()
+      _sym = all_layers['fc1_output']
+      FLOPs = flops_counter.count_flops(_sym, data=(1,3,image_size[0],image_size[1]))
+      _str = flops_counter.flops_str(FLOPs)
+      print('Network FLOPs: %s'%_str)
 
     #label_name = 'softmax_label'
     #label_shape = (args.batch_size,)
@@ -259,7 +271,7 @@ def train_net(args):
 
     def ver_test(nbatch):
       results = []
-      for i in xrange(len(ver_list)):
+      for i in range(len(ver_list)):
         acc1, std1, acc2, std2, xnorm, embeddings_list = verification.test(ver_list[i], model, args.batch_size, 10, None, None)
         print('[%s][%d]XNorm: %f' % (ver_name_list[i], nbatch, xnorm))
         #print('[%s][%d]Accuracy: %1.5f+-%1.5f' % (ver_name_list[i], nbatch, acc1, std1))
@@ -270,7 +282,7 @@ def train_net(args):
 
 
     highest_acc = [0.0, 0.0]  #lfw and target
-    #for i in xrange(len(ver_list)):
+    #for i in range(len(ver_list)):
     #  highest_acc.append(0.0)
     global_step = [0]
     save_step = [0]

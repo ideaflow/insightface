@@ -31,6 +31,7 @@ import os
 import mxnet as mx
 import numpy as np
 import symbol_utils
+import memonger
 import sklearn
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from config import config
@@ -495,6 +496,7 @@ def resnet(units, num_stages, filter_list, num_classes, bottle_neck):
         'version_act': config.net_act,
         'bn_mom': bn_mom,
         'workspace': workspace,
+        'memonger': config.memonger,
         }
     """Return ResNet symbol of
     Parameters
@@ -519,7 +521,8 @@ def resnet(units, num_stages, filter_list, num_classes, bottle_neck):
     fc_type = version_output
     version_unit = kwargs.get('version_unit', 3)
     act_type = kwargs.get('version_act', 'prelu')
-    print(version_se, version_input, version_output, version_unit, act_type)
+    memonger = kwargs.get('memonger', False)
+    print(version_se, version_input, version_output, version_unit, act_type, memonger)
     num_unit = len(units)
     assert(num_unit == num_stages)
     data = mx.sym.Variable(name='data')
@@ -562,6 +565,12 @@ def resnet(units, num_stages, filter_list, num_classes, bottle_neck):
         body = residual_unit(body, filter_list[i+1], (1,1), True, name='stage%d_unit%d' % (i+1, j+2),
           bottle_neck=bottle_neck, **kwargs)
 
+    if bottle_neck:
+      body = Conv(data=body, num_filter=512, kernel=(1,1), stride=(1,1), pad=(0,0),
+                                no_bias=True, name="convd", workspace=workspace)
+      body = mx.sym.BatchNorm(data=body, fix_gamma=False, eps=2e-5, momentum=bn_mom, name='bnd')
+      body = Act(data=body, act_type=act_type, name='relud')
+
     fc1 = symbol_utils.get_fc1(body, num_classes, fc_type)
     return fc1
 
@@ -572,7 +581,7 @@ def get_symbol():
     """
     num_classes = config.emb_size
     num_layers = config.num_layers
-    if num_layers >= 101:
+    if num_layers >= 500:
         filter_list = [64, 256, 512, 1024, 2048]
         bottle_neck = True
     else:
@@ -591,10 +600,22 @@ def get_symbol():
         units = [3, 6, 24, 3]
     elif num_layers == 90:
         units = [3, 8, 30, 3]
+    elif num_layers == 98:
+        units = [3, 4, 38, 3]
+    elif num_layers == 99:
+        units = [3, 8, 35, 3]
     elif num_layers == 100:
         units = [3, 13, 30, 3]
+    elif num_layers == 134:
+        units = [3, 10, 50, 3]
+    elif num_layers == 136:
+        units = [3, 13, 48, 3]
+    elif num_layers == 140:
+        units = [3, 15, 48, 3]
     elif num_layers == 124:
         units = [3, 13, 40, 5]
+    elif num_layers == 160:
+        units = [3, 24, 49, 3]
     elif num_layers == 101:
         units = [3, 4, 23, 3]
     elif num_layers == 152:
@@ -606,9 +627,22 @@ def get_symbol():
     else:
         raise ValueError("no experiments done on num_layers {}, you can do it yourself".format(num_layers))
 
-    return resnet(units       = units,
+    net = resnet(units       = units,
                   num_stages  = num_stages,
                   filter_list = filter_list,
                   num_classes = num_classes,
                   bottle_neck = bottle_neck)
+
+    if config.memonger:
+      dshape = (config.per_batch_size, config.image_shape[2], config.image_shape[0], config.image_shape[1])
+      net_mem_planned = memonger.search_plan(net, data=dshape)
+      old_cost = memonger.get_cost(net, data=dshape)
+      new_cost = memonger.get_cost(net_mem_planned, data=dshape)
+
+      print('Old feature map cost=%d MB' % old_cost)
+      print('New feature map cost=%d MB' % new_cost)
+      net = net_mem_planned
+    return net
+
+
 

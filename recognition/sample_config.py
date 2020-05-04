@@ -12,6 +12,7 @@ config.net_se = 0
 config.net_act = 'prelu'
 config.net_unit = 3
 config.net_input = 1
+config.net_blocks = [1,4,6,2]
 config.net_output = 'E'
 config.net_multiplier = 1.0
 config.val_targets = ['lfw', 'cfp_fp', 'agedb_30']
@@ -24,6 +25,8 @@ config.data_rand_mirror = True
 config.data_cutoff = False
 config.data_color = 0
 config.data_images_filter = 0
+config.count_flops = True
+config.memonger = False #not work now
 
 
 # network settings
@@ -32,6 +35,11 @@ network = edict()
 network.r100 = edict()
 network.r100.net_name = 'fresnet'
 network.r100.num_layers = 100
+
+network.r100fc = edict()
+network.r100fc.net_name = 'fresnet'
+network.r100fc.num_layers = 100
+network.r100fc.net_output = 'FC'
 
 network.r50 = edict()
 network.r50.net_name = 'fresnet'
@@ -58,6 +66,12 @@ network.y1 = edict()
 network.y1.net_name = 'fmobilefacenet'
 network.y1.emb_size = 128
 network.y1.net_output = 'GDC'
+
+network.y2 = edict()
+network.y2.net_name = 'fmobilefacenet'
+network.y2.emb_size = 256
+network.y2.net_output = 'GDC'
+network.y2.net_blocks = [2,8,16,4]
 
 network.m1 = edict()
 network.m1.net_name = 'fmobilenet'
@@ -89,6 +103,12 @@ network.mnas025.emb_size = 256
 network.mnas025.net_output = 'GDC'
 network.mnas025.net_multiplier = 0.25
 
+network.vargfacenet = edict()
+network.vargfacenet.net_name = 'vargfacenet'
+network.vargfacenet.net_multiplier = 1.25
+network.vargfacenet.emb_size = 512
+network.vargfacenet.net_output='J'
+
 # dataset settings
 dataset = edict()
 
@@ -98,6 +118,13 @@ dataset.emore.dataset_path = '../datasets/faces_emore'
 dataset.emore.num_classes = 85742
 dataset.emore.image_shape = (112,112,3)
 dataset.emore.val_targets = ['lfw', 'cfp_fp', 'agedb_30']
+
+dataset.retina = edict()
+dataset.retina.dataset = 'retina'
+dataset.retina.dataset_path = '../datasets/ms1m-retinaface-t1'
+dataset.retina.num_classes = 93431
+dataset.retina.image_shape = (112,112,3)
+dataset.retina.val_targets = ['lfw', 'cfp_fp', 'agedb_30']
 
 loss = edict()
 loss.softmax = edict()
